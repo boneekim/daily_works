@@ -10,77 +10,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# 테이블 구조 자동 설정
-def setup_table_structure(supabase):
-    """테이블 구조를 확인하고 필요시 생성/수정"""
-    try:
-        # 테이블 존재 여부 및 구조 확인
-        try:
-            response = supabase.table("daily_works").select("*").limit(1).execute()
-            # 테이블이 존재하고 접근 가능하면 성공
-            return True
-        except Exception as e:
-            if "does not exist" in str(e) or "relation" in str(e) or "PGRST" in str(e):
-                st.warning("🔧 테이블 구조에 문제가 있어 자동으로 수정합니다...")
-                
-                # 테이블 재생성 시도
-                st.info("📋 올바른 테이블 구조로 재생성하고 있습니다...")
-                
-                with st.expander("🛠️ 테이블 수정 과정 (자동)"):
-                    st.code("""
--- daily_works 테이블 재생성
-DROP TABLE IF EXISTS daily_works;
-
-CREATE TABLE daily_works (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    link TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE daily_works DISABLE ROW LEVEL SECURITY;
-                    """)
-                    
-                st.error("❌ 테이블 구조 문제가 감지되었습니다!")
-                st.markdown("""
-                **📋 해결 방법:**
-                1. **Supabase SQL Editor** 접속: https://supabase.com → 프로젝트 → SQL Editor
-                2. 다음 명령어들을 **순서대로** 실행:
-                
-                ```sql
-                -- 1. 기존 테이블 삭제
-                DROP TABLE IF EXISTS daily_works;
-                
-                -- 2. 올바른 구조로 재생성
-                CREATE TABLE daily_works (
-                    id SERIAL PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    link TEXT NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-                
-                -- 3. RLS 비활성화
-                ALTER TABLE daily_works DISABLE ROW LEVEL SECURITY;
-                
-                -- 4. 테스트 데이터 추가
-                INSERT INTO daily_works (title, category, link) 
-                VALUES ('테스트 항목', '핫딜', 'https://example.com');
-                ```
-                
-                3. **완료 후 이 페이지를 새로고침**하세요!
-                """)
-                
-                return False
-            else:
-                st.error(f"알 수 없는 오류: {str(e)}")
-                return False
-                
-    except Exception as e:
-        st.error(f"테이블 설정 중 오류: {str(e)}")
-        return False
-
 # 샘플 데이터 자동 로드 기능
 def load_sample_data(supabase):
     """데이터베이스가 비어있을 때 샘플 데이터를 자동으로 추가"""
@@ -179,9 +108,6 @@ def load_sample_data(supabase):
             
     except Exception as e:
         st.warning(f"⚠️ 샘플 데이터 추가 중 오류: {str(e)}")
-        if "category" in str(e) or "PGRST204" in str(e):
-            st.error("❌ 테이블 구조에 'category' 컬럼이 없습니다!")
-            st.markdown("**해결 방법**: 위의 테이블 수정 SQL을 Supabase에서 실행해주세요.")
 
 # 수동 Secrets 입력 방식
 def manual_supabase_setup():
@@ -208,12 +134,10 @@ def manual_supabase_setup():
     if supabase_url and supabase_key:
         try:
             supabase = create_client(supabase_url, supabase_key)
-            # 연결 테스트 및 테이블 구조 확인
-            if setup_table_structure(supabase):
-                st.success("✅ Supabase 연결 및 테이블 구조 확인 완료!")
-                return supabase
-            else:
-                return None
+            # 연결 테스트
+            response = supabase.table("daily_works").select("count", count="exact").execute()
+            st.success("✅ Supabase 연결 성공!")
+            return supabase
         except Exception as e:
             st.error(f"❌ 연결 실패: {str(e)}")
             return None
@@ -228,13 +152,7 @@ def init_supabase():
         if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets and "SUPABASE_ANON_KEY" in st.secrets:
             url = st.secrets["SUPABASE_URL"]
             key = st.secrets["SUPABASE_ANON_KEY"]
-            supabase = create_client(url, key)
-            
-            # 테이블 구조 확인
-            if setup_table_structure(supabase):
-                return supabase
-            else:
-                return None
+            return create_client(url, key)
         else:
             return None
     except Exception:
@@ -264,15 +182,15 @@ def main():
     if connection_mode == "🔐 Secrets 사용 (권장)":
         supabase = init_supabase()
         if not supabase:
-            st.error("🚨 Secrets에서 Supabase 설정을 찾을 수 없거나 테이블 구조에 문제가 있습니다.")
-            st.info("💡 Streamlit Cloud → Settings → Secrets에서 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정하거나, 위의 테이블 수정 SQL을 실행해주세요.")
+            st.error("🚨 Secrets에서 Supabase 설정을 찾을 수 없습니다.")
+            st.info("💡 Streamlit Cloud → Settings → Secrets에서 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정해주세요.")
             st.stop()
     else:
         supabase = manual_supabase_setup()
         if not supabase:
             st.stop()
     
-    # 샘플 데이터 자동 로드 (데이터베이스가 비어있고 테이블 구조가 올바를 때)
+    # 샘플 데이터 자동 로드 (데이터베이스가 비어있을 때)
     load_sample_data(supabase)
     
     st.markdown("---")
@@ -314,8 +232,8 @@ def main():
                         
                 except Exception as e:
                     st.error(f"❌ 오류가 발생했습니다: {str(e)}")
-                    if "category" in str(e) or "PGRST204" in str(e):
-                        st.markdown("**💡 해결 방법**: 위의 테이블 수정 SQL을 Supabase에서 실행해주세요.")
+                    if "RLS" in str(e) or "permission" in str(e).lower():
+                        st.info("💡 RLS 문제일 수 있습니다. Supabase에서 'ALTER TABLE daily_works DISABLE ROW LEVEL SECURITY;' 실행해보세요.")
             else:
                 st.error("❌ 모든 필드를 입력해주세요.")
     
@@ -404,8 +322,8 @@ def main():
             
     except Exception as e:
         st.error(f"❌ 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}")
-        if "category" in str(e) or "PGRST204" in str(e):
-            st.markdown("**💡 해결 방법**: 위의 테이블 수정 SQL을 Supabase에서 실행해주세요.")
+        if "RLS" in str(e) or "permission" in str(e).lower():
+            st.info("💡 RLS 문제일 수 있습니다. Supabase에서 'ALTER TABLE daily_works DISABLE ROW LEVEL SECURITY;' 실행해보세요.")
     
     # 사이드바에 가이드
     with st.sidebar:
@@ -413,10 +331,10 @@ def main():
         
         st.subheader("🎯 주요 기능")
         st.markdown("""
-        - **자동 테이블 생성**: 구조 문제 자동 감지 및 안내
         - **자동 샘플 데이터**: 첫 실행시 42개의 실용적인 데이터 추가
         - **카테고리별 관리**: 15개 카테고리로 체계적 분류
         - **검색 및 필터**: 원하는 정보 빠르게 찾기
+        - **바로가기 링크**: 클릭 한 번으로 사이트 이동
         """)
         
         if connection_mode == "⚙️ 수동 입력 (임시)":
