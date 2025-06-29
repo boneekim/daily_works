@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from supabase import create_client, Client
 from datetime import datetime
 
 # Streamlit 페이지 설정
@@ -9,87 +10,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Secrets 디버깅
-def debug_secrets():
-    st.header("🔍 Secrets 디버깅")
-    
-    # Secrets 존재 여부 확인
-    if hasattr(st, 'secrets'):
-        st.success("✅ st.secrets 접근 가능")
-        
-        # 개별 키 확인
-        try:
-            url = st.secrets["SUPABASE_URL"]
-            st.success(f"✅ SUPABASE_URL 발견: {url[:20]}...")
-        except KeyError:
-            st.error("❌ SUPABASE_URL이 Secrets에 없습니다")
-        except Exception as e:
-            st.error(f"❌ SUPABASE_URL 접근 오류: {e}")
-        
-        try:
-            key = st.secrets["SUPABASE_ANON_KEY"]
-            st.success(f"✅ SUPABASE_ANON_KEY 발견: {key[:20]}...")
-        except KeyError:
-            st.error("❌ SUPABASE_ANON_KEY가 Secrets에 없습니다")
-        except Exception as e:
-            st.error(f"❌ SUPABASE_ANON_KEY 접근 오류: {e}")
-            
-        # 전체 Secrets 구조 표시
-        st.subheader("🔧 현재 Secrets 구조")
-        try:
-            secrets_dict = dict(st.secrets)
-            for key in secrets_dict.keys():
-                st.write(f"- {key}: {'설정됨' if secrets_dict[key] else '비어있음'}")
-        except Exception as e:
-            st.error(f"Secrets 구조 확인 실패: {e}")
-    else:
-        st.error("❌ st.secrets 접근 불가")
-
-# Supabase 설정 (안전한 방식)
+# Supabase 설정
 @st.cache_resource
 def init_supabase():
     try:
-        # Secrets 존재 여부 먼저 확인
-        if not hasattr(st, 'secrets'):
-            st.error("🚨 Streamlit Secrets에 접근할 수 없습니다.")
-            return None
-            
-        # 각 키 개별 확인
-        if "SUPABASE_URL" not in st.secrets:
-            st.error("🚨 SUPABASE_URL이 Secrets에 설정되지 않았습니다.")
-            st.info("💡 Streamlit Cloud → Settings → Secrets에서 SUPABASE_URL을 추가해주세요.")
-            return None
-            
-        if "SUPABASE_ANON_KEY" not in st.secrets:
-            st.error("🚨 SUPABASE_ANON_KEY가 Secrets에 설정되지 않았습니다.")
-            st.info("💡 Streamlit Cloud → Settings → Secrets에서 SUPABASE_ANON_KEY를 추가해주세요.")
-            return None
-        
         url = st.secrets["SUPABASE_URL"]
         key = st.secrets["SUPABASE_ANON_KEY"]
-        
-        # 값 검증
-        if not url or not url.startswith('https://'):
-            st.error("🚨 SUPABASE_URL 형식이 올바르지 않습니다. https://로 시작해야 합니다.")
-            return None
-            
-        if not key or len(key) < 100:  # Supabase anon key는 보통 매우 깁니다
-            st.error("�� SUPABASE_ANON_KEY가 올바르지 않습니다.")
-            return None
-        
-        # Supabase 클라이언트 생성
-        from supabase import create_client
-        supabase = create_client(url, key)
-        
-        st.success("✅ Supabase 연결 성공!")
-        return supabase
-        
-    except ImportError:
-        st.error("🚨 supabase 패키지를 가져올 수 없습니다. requirements.txt를 확인해주세요.")
-        return None
+        return create_client(url, key)
     except Exception as e:
-        st.error(f"🚨 Supabase 초기화 오류: {str(e)}")
-        return None
+        st.error("Supabase 설정을 확인해주세요. Secrets에 SUPABASE_URL과 SUPABASE_ANON_KEY를 추가해주세요.")
+        st.stop()
 
 # 카테고리 목록
 CATEGORIES = [
@@ -100,21 +30,10 @@ CATEGORIES = [
 
 def main():
     st.title("📝 Daily Works - 데일리 실천 체험단")
-    
-    # 디버깅 모드 토글
-    debug_mode = st.checkbox("🔧 디버깅 모드", help="Secrets 설정 문제를 진단합니다")
-    
-    if debug_mode:
-        debug_secrets()
-        st.markdown("---")
+    st.markdown("---")
     
     # Supabase 클라이언트 초기화
     supabase = init_supabase()
-    
-    if not supabase:
-        st.stop()  # Supabase 연결 실패시 여기서 중단
-    
-    st.markdown("---")
     
     # 새 항목 추가 섹션
     st.header("✨ 새 항목 추가")
@@ -226,30 +145,23 @@ def main():
             
     except Exception as e:
         st.error(f"❌ 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}")
-        st.info("💡 데이터베이스 연결을 확인해주세요.")
+        st.info("💡 Supabase 연결을 확인해주세요.")
     
-    # 사이드바에 설정 가이드
+    # 사이드바에 정보 표시
     with st.sidebar:
-        st.header("⚙️ 설정 가이드")
-        
-        st.subheader("1️⃣ Supabase 정보 확인")
+        st.header("ℹ️ 앱 정보")
         st.markdown("""
-        1. https://supabase.com 접속
-        2. 프로젝트 → Settings → API
-        3. Project URL과 anon public key 복사
+        **Daily Works**는 데일리 실천 체험단 정보를 관리하는 앱입니다.
+        
+        **주요 기능:**
+        - 새로운 체험단/이벤트 정보 추가
+        - 카테고리별 필터링
+        - 제목으로 검색
+        - 링크 클릭으로 바로 이동
+        
+        **카테고리:**
         """)
         
-        st.subheader("2️⃣ Streamlit Secrets 설정")
-        st.markdown("""
-        1. https://share.streamlit.io 접속
-        2. 앱 → ⚙️ → Settings → Secrets
-        3. 다음 형식으로 입력:
-        """)
-        
-        st.code('''SUPABASE_URL = "https://xxx.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGci..."''')
-        
-        st.subheader("3️⃣ 카테고리")
         for i, category in enumerate(CATEGORIES, 1):
             st.markdown(f"{i}. {category}")
 
