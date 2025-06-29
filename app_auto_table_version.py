@@ -175,11 +175,7 @@ def load_sample_data(supabase):
                 supabase.table("daily_works").insert(data).execute()
             
             st.success(f"✅ {len(sample_data)}개의 샘플 데이터가 추가되었습니다!")
-            # Streamlit 최신 버전용 rerun 사용
-            if hasattr(st, 'rerun'):
-                st.rerun()
-            else:
-                st.experimental_rerun()
+            st.experimental_rerun()
             
     except Exception as e:
         st.warning(f"⚠️ 샘플 데이터 추가 중 오류: {str(e)}")
@@ -312,11 +308,7 @@ def main():
                     
                     if result.data:
                         st.success("✅ 새 항목이 성공적으로 추가되었습니다!")
-                        # Streamlit 최신 버전 호환성
-                        if hasattr(st, 'rerun'):
-                            st.rerun()
-                        else:
-                            st.experimental_rerun()
+                        st.experimental_rerun()
                     else:
                         st.error("❌ 항목 추가에 실패했습니다.")
                         
@@ -435,7 +427,7 @@ def main():
             3. Project URL과 anon public key 복사
             """)
         
-        st.subheader("�� 카테고리 목록")
+        st.subheader("📋 카테고리 목록")
         for i, category in enumerate(CATEGORIES, 1):
             st.markdown(f"{i}. {category}")
 
