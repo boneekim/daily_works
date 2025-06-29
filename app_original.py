@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
+import os
 from datetime import datetime
 
 # Streamlit 페이지 설정
@@ -13,13 +14,12 @@ st.set_page_config(
 # Supabase 설정
 @st.cache_resource
 def init_supabase():
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_ANON_KEY"]
-        return create_client(url, key)
-    except Exception as e:
-        st.error("Supabase 설정을 확인해주세요. Secrets에 SUPABASE_URL과 SUPABASE_ANON_KEY를 추가해주세요.")
-        st.stop()
+    url = st.secrets.get("SUPABASE_URL", "")
+    key = st.secrets.get("SUPABASE_ANON_KEY", "")
+    if not url or not key:
+        st.error("Supabase 설정이 필요합니다. .streamlit/secrets.toml 파일을 확인해주세요.")
+        return None
+    return create_client(url, key)
 
 # 카테고리 목록
 CATEGORIES = [
@@ -34,6 +34,8 @@ def main():
     
     # Supabase 클라이언트 초기화
     supabase = init_supabase()
+    if not supabase:
+        return
     
     # 새 항목 추가 섹션
     st.header("✨ 새 항목 추가")
@@ -67,7 +69,7 @@ def main():
                     
                     if result.data:
                         st.success("✅ 새 항목이 성공적으로 추가되었습니다!")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("❌ 항목 추가에 실패했습니다.")
                         
@@ -82,23 +84,23 @@ def main():
     st.header("📋 데일리 실천 체험단 목록")
     
     try:
-        # 카테고리 필터
-        col1, col2 = st.columns([2, 6])
-        
-        with col1:
-            selected_categories = st.multiselect(
-                "카테고리 필터",
-                CATEGORIES,
-                default=CATEGORIES
-            )
-        
-        with col2:
-            search_term = st.text_input("검색", placeholder="제목으로 검색...")
-        
         # Supabase에서 데이터 조회
         response = supabase.table("daily_works").select("*").order("created_at", desc=True).execute()
         
         if response.data:
+            # 카테고리 필터
+            col1, col2 = st.columns([2, 6])
+            
+            with col1:
+                selected_categories = st.multiselect(
+                    "카테고리 필터",
+                    CATEGORIES,
+                    default=CATEGORIES
+                )
+            
+            with col2:
+                search_term = st.text_input("검색", placeholder="제목으로 검색...")
+            
             # 데이터 필터링
             filtered_data = []
             for item in response.data:
@@ -110,30 +112,36 @@ def main():
                 # 데이터를 표 형태로 표시
                 df_display = []
                 for item in filtered_data:
-                    created_date = datetime.fromisoformat(item['created_at'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M')
-                    
                     df_display.append({
-                        "제목": item['title'],
+                        "제목": f"[{item['title']}]({item['link']})",
                         "종류": item['category'],
                         "링크": item['link'],
-                        "등록일": created_date
+                        "등록일": datetime.fromisoformat(item['created_at'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M')
                     })
                 
                 df = pd.DataFrame(df_display)
                 
-                # 표시
-                st.dataframe(df, use_container_width=True)
-                
-                # 링크를 클릭 가능한 형태로 별도 표시
-                st.subheader("🔗 링크 목록")
-                for item in filtered_data:
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    with col1:
-                        st.write(f"**{item['title']}**")
-                    with col2:
-                        st.write(item['category'])
-                    with col3:
-                        st.link_button("이동", item['link'])
+                # 표시할 컬럼 선택
+                st.dataframe(
+                    df[["제목", "종류", "등록일"]],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "제목": st.column_config.LinkColumn(
+                            "제목",
+                            help="클릭하면 해당 사이트로 이동합니다",
+                            display_text=".*"
+                        ),
+                        "종류": st.column_config.TextColumn(
+                            "종류",
+                            width="medium"
+                        ),
+                        "등록일": st.column_config.DatetimeColumn(
+                            "등록일",
+                            width="medium"
+                        )
+                    }
+                )
                 
                 st.info(f"📊 총 {len(filtered_data)}개의 항목이 있습니다.")
                 
@@ -145,7 +153,6 @@ def main():
             
     except Exception as e:
         st.error(f"❌ 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}")
-        st.info("💡 Supabase 연결을 확인해주세요.")
     
     # 사이드바에 정보 표시
     with st.sidebar:
