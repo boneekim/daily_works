@@ -268,7 +268,7 @@ def main():
     if connection_mode == "🔐 Secrets 사용 (권장)":
         supabase = init_supabase()
         if not supabase:
-            st.error("�� Secrets에서 Supabase 설정을 찾을 수 없거나 테이블 구조에 문제가 있습니다.")
+            st.error("🚨 Secrets에서 Supabase 설정을 찾을 수 없거나 테이블 구조에 문제가 있습니다.")
             st.info("💡 Streamlit Cloud → Settings → Secrets에서 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정하거나, 위의 테이블 수정 SQL을 실행해주세요.")
             st.stop()
     else:
@@ -373,38 +373,34 @@ def main():
                 
                 st.markdown("---")
                 
-                # 데이터를 표 형태로 표시 (제목, 종류, URL)
+                # 데이터를 표 형태로 표시
                 df_display = []
                 for item in filtered_data:
+                    created_date = datetime.fromisoformat(item['created_at'].replace('Z', '+00:00')).strftime('%Y-%m-%d')
+                    
                     df_display.append({
                         "제목": item['title'],
                         "종류": item['category'],
-                        "URL": item['link']
+                        "등록일": created_date
                     })
                 
                 df = pd.DataFrame(df_display)
+                st.dataframe(df, use_container_width=True, hide_index=True)
                 
-                # URL 컬럼을 클릭 가능한 링크로 설정
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "제목": st.column_config.TextColumn(
-                            "제목",
-                            width="large"
-                        ),
-                        "종류": st.column_config.TextColumn(
-                            "종류",
-                            width="medium"
-                        ),
-                        "URL": st.column_config.LinkColumn(
-                            "URL",
-                            help="클릭하면 해당 사이트로 이동합니다",
-                            width="large"
-                        )
-                    }
-                )
+                # 링크 목록
+                st.subheader("🔗 바로가기 링크")
+                
+                # 카테고리별로 그룹화해서 표시
+                for category in CATEGORIES:
+                    items_in_category = [item for item in filtered_data if item['category'] == category]
+                    if items_in_category:
+                        with st.expander(f"📂 {category} ({len(items_in_category)}개)"):
+                            for item in items_in_category:
+                                col1, col2 = st.columns([5, 1])
+                                with col1:
+                                    st.write(f"**{item['title']}**")
+                                with col2:
+                                    st.link_button("이동", item['link'], use_container_width=True)
                 
                 st.info(f"📊 총 {len(filtered_data)}개의 항목이 있습니다.")
                 
@@ -429,7 +425,6 @@ def main():
         - **자동 샘플 데이터**: 첫 실행시 42개의 실용적인 데이터 추가
         - **카테고리별 관리**: 15개 카테고리로 체계적 분류
         - **검색 및 필터**: 원하는 정보 빠르게 찾기
-        - **URL 직접 연결**: 테이블의 URL 클릭으로 바로 이동
         """)
         
         if connection_mode == "⚙️ 수동 입력 (임시)":
@@ -440,7 +435,7 @@ def main():
             3. Project URL과 anon public key 복사
             """)
         
-        st.subheader("📋 카테고리 목록")
+        st.subheader("�� 카테고리 목록")
         for i, category in enumerate(CATEGORIES, 1):
             st.markdown(f"{i}. {category}")
 
